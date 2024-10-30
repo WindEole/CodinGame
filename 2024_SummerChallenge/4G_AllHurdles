@@ -1,0 +1,299 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
+
+#pragma GCC optimize "-O3"
+
+using namespace std;
+
+/**
+ * Auto-generated code below aims at helping you parse
+ * the standard input according to the problem statement.
+ **/
+
+/*
+actions
+LEFT -> move forward 1 spaces
+DOWN -> move forward 2 spaces
+RIGHT -> move forward 3 spaces
+UP -> jump over one space, ignoring hurdle (and so moving 2 spaces total)
+*/
+
+// --------------- ANCIEN CODE ------------------------------------- //
+
+/* string translatePattern(string pattern, int turn)
+{
+    string action;
+    cerr << "pattern[turn] = " << pattern[turn] << endl;
+
+    if (pattern[turn] == '1')
+        action = "LEFT";
+    else if (pattern[turn] == '2')
+        action = "DOWN";
+    else if (pattern[turn] == '3')
+        action = "RIGHT";
+    else if (pattern[turn] == 'X')
+        action = "UP";
+    
+    cerr << "action = " << action << endl;
+    return action;
+}
+
+string optimizePattern(string oldPattern)
+{
+    string pattern;
+    int count = 0;
+
+    for (int i = 0; i <= oldPattern.size(); ++i)
+    {
+        if (i < oldPattern.size() && oldPattern[i] == '1')
+            count++;
+        else
+        {
+            // Ajouter les '1' en groupes de '3'
+            while (count >= 3)
+            {
+                pattern += '3';
+                count -= 3;
+            }
+            // Ajouter les '1' restants s'il y en a
+            if (count > 0)
+            {
+                pattern += to_string(count);
+                count = 0;
+            }
+            // Ajouter 'X' si présent
+            if (i < oldPattern.size() && oldPattern[i] == 'X')
+                pattern += 'X';
+        }
+    }
+    return pattern;
+}
+
+string manageHurdle(string racetrack) 
+{
+    string pattern;
+
+    int count;
+    for (int i = 0; i < racetrack.size(); i++)
+    {
+        if (racetrack[i] == '.' && (racetrack[i + 1] && racetrack[i + 1] != '#'))
+            pattern.push_back('1');
+        else
+        {
+            pattern.push_back('X');
+            i++;
+        }
+    }
+    cerr << "change Racetrack into pattern = " << pattern << endl;
+    pattern = optimizePattern(pattern);
+    cerr << "optimized pattern = " << pattern << endl;
+    return pattern;
+} */
+
+// --------------- FIN ANCIEN CODE ------------------------------------- //
+
+struct GameInfo {
+    std::string gpu;
+    int p1_pos;
+    int p2_pos;
+    int p3_pos;
+    int p1_stun;
+    int p2_stun;
+    int p3_stun;
+    int unused;
+    int my_pos;
+    int my_stun;
+};
+
+int eval_LEFT(const GameInfo& game, int i)
+{
+    int ret = 0;
+    cerr << "jeu = " << i << endl;
+    if (i == 3 && game.gpu[game.my_pos] == 'L')
+        ret = 15;
+    else
+    {
+        if (game.gpu[game.my_pos + 1] == '#')
+            ret -= 3;
+        else
+            ret += 1;
+    }
+    cerr << "eval partiel L = " << ret << endl; // " || pos + 1 = " << game.gpu[game.my_pos + 1] << " || pos + 2 = " << game.gpu[game.my_pos + 2]  << " || pos + 3 = " << game.gpu[game.my_pos + 3] << endl;
+    return ret;
+}
+
+int eval_DOWN(const GameInfo& game, int i)
+{
+    int ret = 0;
+    if (i == 3 && game.gpu[game.my_pos] == 'D')
+        ret = 15;
+    else
+    {
+        if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#')
+            ret -= 3;
+        else
+            ret += 2;
+    }
+    cerr << "eval partiel D = " << ret << endl;
+    return ret;
+}
+
+int eval_RIGHT(const GameInfo& game, int i)
+{
+    int ret = 0;
+    if (i == 3 && game.gpu[game.my_pos] == 'R')
+        ret = 15;
+    else
+    {
+        if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#' || game.gpu[game.my_pos + 3] == '#')
+            ret -= 3;
+        else
+            ret += 4;
+    }
+    cerr << "eval partiel R = " << ret << endl;
+    return ret;
+}
+
+int eval_UP(const GameInfo& game, int i)
+{
+    int ret = 0;
+    if (i == 3 && game.gpu[game.my_pos] == 'U')
+        ret = 15;
+    else
+    {
+        if (game.gpu[game.my_pos + 2] == '#')
+            ret -= 4;
+        else
+            ret += 2;
+    }
+    cerr << "eval partiel U = " << ret << endl;
+    return ret;
+}
+
+int main()
+{
+    int player_idx;
+    cin >> player_idx; cin.ignore();
+    int nb_games;
+    cin >> nb_games; cin.ignore();
+    
+    cerr << "nb de parties en cours : " << nb_games << endl;
+    cerr << "player_idx : " << player_idx << endl;
+
+    // on initialise un vecteur de structure de nb_games lines, pour enregistrer toutes les info des jeux
+    std::vector<GameInfo> arcades(nb_games);
+    string action; // LEFT DOWN RIGHT UP
+
+    // game loop
+    while (1) {
+        for (int i = 0; i < 3; i++) {
+            string score_info;
+            getline(cin, score_info);
+        }
+        for (int i = 0; i < nb_games; i++) {
+            string gpu;
+            int reg_0;
+            int reg_1;
+            int reg_2;
+            int reg_3;
+            int reg_4;
+            int reg_5;
+            int reg_6;
+            cin >> gpu >> reg_0 >> reg_1 >> reg_2 >> reg_3 >> reg_4 >> reg_5 >> reg_6; cin.ignore();
+
+            // on enregistre les données dans le vecteur arcades
+            arcades[i].gpu = gpu;
+            arcades[i].p1_pos = reg_0;
+            arcades[i].p2_pos = reg_1;
+            arcades[i].p3_pos = reg_2;
+            arcades[i].p1_stun = reg_3;
+            arcades[i].p2_stun = reg_4;
+            arcades[i].p3_stun = reg_5;
+            arcades[i].unused = reg_6;
+
+            // définition de my_pos
+            if (player_idx == 0)
+            {
+                arcades[i].my_pos = reg_0;
+                arcades[i].my_stun = reg_3;
+            }
+            else if (player_idx == 1)
+            {
+                arcades[i].my_pos = reg_1;
+                arcades[i].my_stun = reg_4;
+            }
+            else
+            {
+                arcades[i].my_pos = reg_2;
+                arcades[i].my_stun = reg_5;
+            }
+
+            // si on est en fin de parcours
+            //if (arcades[i].gpu == "GAME_OVER")
+            //    break;
+        }
+
+        // Évaluer les actions pour chaque partie et choisir la meilleure
+        int eval_left = 0;
+        int eval_down = 0;
+        int eval_right = 0;
+        int eval_up = 0;
+        cerr << "jeu n°1 gpu = " << arcades[1].gpu << endl;
+        int j = 0;
+
+        for (int i = 0; i < nb_games; i++) {
+            if (arcades[i].gpu == "GAME_OVER") {
+                continue;
+            }
+            if (i == 0 && arcades[i].my_stun != 0) {
+                continue;
+            }
+            if (i == 3)
+            {
+                if (arcades[i].gpu[j] == 'L')
+                    eval_left += 15;
+                else if (arcades[i].gpu[j] == 'D')
+                    eval_down += 15;
+                else if (arcades[i].gpu[j] == 'R')
+                    eval_right += 15;
+                else if (arcades[i].gpu[j] == 'U')
+                    eval_up += 15;
+                j++;
+            }
+            cerr << "track = " << arcades[i].gpu << " || position = " << arcades[i].my_pos << endl;
+            eval_left += eval_LEFT(arcades[i], j);
+            eval_down += eval_DOWN(arcades[i], j);
+            eval_right += eval_RIGHT(arcades[i], j);
+            eval_up += eval_UP(arcades[i], j);
+        }
+
+        cerr << "Evaluations : " << endl;
+        cerr << "Left (1 move fwd) = " << eval_left << endl;
+        cerr << "Down (2 move fwd) = " << eval_down << endl;
+        cerr << "Right (3 move fwd) = " << eval_right << endl;
+        cerr << "Up (2 move fwd + jump) = " << eval_up << endl;
+
+        int best_eval = eval_left;
+        action = "LEFT";
+        if (eval_down > best_eval) {
+            best_eval = eval_down;
+            action = "DOWN";
+        }
+        if (eval_right > best_eval) {
+            best_eval = eval_right;
+            action = "RIGHT";
+        }
+        if (eval_up > best_eval) {
+            best_eval = eval_up;
+            action = "UP";
+        }
+        cerr << "BEST_EVAL = " << best_eval << endl;
+        std::cout << action << std::endl;
+
+        // Write an action using cout. DON'T FORGET THE "<< endl"
+        // To debug: cerr << "Debug messages..." << endl;
+        // cout << "LEFT" << endl;
+    }
+}

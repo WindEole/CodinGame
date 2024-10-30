@@ -1,0 +1,357 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
+
+// #pragma GCC optimize "-O3"
+#pragma GCC optimize("O3")
+#pragma GCC optimize("inline")
+#pragma GCC optimize("omit-frame-pointer")
+#pragma GCC optimize("unroll-loops")
+
+using namespace std;
+
+/*
+actions
+LEFT -> move forward 1 spaces
+DOWN -> move forward 2 spaces
+RIGHT -> move forward 3 spaces
+UP -> jump over one space, ignoring hurdle (and so moving 2 spaces total)
+*/
+
+struct GameInfo {
+    std::string gpu;
+    int reg_0;
+    int reg_1;
+    int reg_2;
+    int reg_3;
+    int reg_4;
+    int reg_5;
+    int reg_6;
+    int my_pos;
+    int my_stun;
+    char max_wind;
+    int arch_x;
+    int arch_y;
+};
+
+// int vote_L;
+// int vote_D;
+// int vote_R;
+// int vote_U;
+
+int ponder_DIVING(const GameInfo& game, string test)
+{
+    int ret = 0;
+    if (test == "left" && game.gpu[0] == 'L')
+        ret += 2;
+    else if (test == "down" && game.gpu[0] == 'D')
+        ret += 2;
+    else if (test == "right" && game.gpu[0] == 'R')
+        ret += 2;
+    else if (test == "up" && game.gpu[0] == 'U')
+        ret += 2;
+    else
+        ret = 0;
+    return ret;
+}
+
+int ponder_ARCHERY(const GameInfo& game, const std::string& test)
+{
+    int ret = 0;
+
+    // Vérifie la direction horizontale
+    if (game.arch_x != 0)
+    {
+        if ((game.arch_x > 0 && test == "left") || (game.arch_x < 0 && test == "right"))
+            ret += 2;
+        else
+            ret += 1;
+    }
+
+    // Vérifie la direction verticale
+    else if (game.arch_y != 0)
+    {
+        if ((game.arch_y > 0 && test == "down") || (game.arch_y < 0 && test == "up"))
+            ret += 2;
+        else
+            ret += 1;
+    }
+
+    // Ajoute des points supplémentaires si le vent est au maximum
+    if (game.gpu[0] == game.max_wind && (ret % 2 == 0)) // Vérifie si la direction principale était correcte
+        ret += 3;
+
+    return ret;
+}
+
+int eval_LEFT(const GameInfo& game, int i)
+{
+    int ret = 0;
+    if (i == 0) // Hurdles
+    {
+        // if (game.gpu[game.my_pos + 1] == '#')
+        //     ret -= 3;
+        // else
+        //     ret += 1;
+        if (game.gpu[game.my_pos + 1] == '#')
+            ret -= 1;
+        else
+            ret += 3;
+    }
+    else if (i == 1) // Archery
+    {
+        ret += ponder_ARCHERY(game, "left");
+    }
+    // else if (i == 2) // Skating
+    // {
+
+    // }
+    else if (i == 3) // Diving
+    {
+        ret += ponder_DIVING(game, "left");
+    }
+
+    cerr << "eval partiel L = " << ret << endl; // " || pos + 1 = " << game.gpu[game.my_pos + 1] << " || pos + 2 = " << game.gpu[game.my_pos + 2]  << " || pos + 3 = " << game.gpu[game.my_pos + 3] << endl;
+    return ret;
+}
+
+int eval_DOWN(const GameInfo& game, int i)
+{
+    int ret = 0;
+    if (i == 0)
+    {
+        // if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#')
+        //     ret -= 3;
+        // else
+        //     ret += 2;
+        if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#')
+            ret -= 1;
+        else
+            ret += 4;
+    }
+    else if (i == 1)
+    {
+        ret += ponder_ARCHERY(game, "down");
+    }
+    // else if (i == 2)
+    // {
+
+    // }
+    else if (i == 3)
+    {
+        ret += ponder_DIVING(game, "down");
+    }
+    cerr << "eval partiel D = " << ret << endl;
+    return ret;
+}
+
+int eval_RIGHT(const GameInfo& game, int i)
+{
+    int ret = 0;
+    if (i == 0)
+    {
+        // if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#' || game.gpu[game.my_pos + 3] == '#')
+        //     ret -= 3;
+        // else
+        //     ret += 4;
+        if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#' || game.gpu[game.my_pos + 3] == '#')
+            ret -= 1;
+        else
+            ret += 10;
+    }
+    else if (i == 1)
+    {
+        ret += ponder_ARCHERY(game, "right");
+    }
+    // else if (i == 2)
+    // {
+
+    // }
+    else if (i == 3)
+    {
+        ret += ponder_DIVING(game, "right");
+    }
+    cerr << "eval partiel R = " << ret << endl;
+    return ret;
+}
+
+int eval_UP(const GameInfo& game, int i)
+{
+    int ret = 0;
+    if (i == 0)
+    {
+        // if (game.gpu[game.my_pos + 2] == '#')
+        //     ret -= 4;
+        // else
+        //     ret += 2;
+        if (game.gpu[game.my_pos + 2] == '#')
+            ret -= 2;
+        else
+            ret += 4;
+    }
+    else if (i == 1)
+    {
+        ret += ponder_ARCHERY(game, "up");
+    }
+    // else if (i == 2)
+    // {
+
+    // }
+    else if (i == 3)
+    {
+        ret += ponder_DIVING(game, "up");
+    }
+    cerr << "eval partiel U = " << ret << endl;
+    return ret;
+}
+
+int main()
+{
+    int player_idx;
+    cin >> player_idx; cin.ignore();
+    int nb_games;
+    cin >> nb_games; cin.ignore();
+    
+    cerr << "nb de parties en cours : " << nb_games << endl;
+    cerr << "player_idx : " << player_idx << endl;
+
+    // on initialise un vecteur de structure de nb_games lines, pour enregistrer toutes les info des jeux
+    std::vector<GameInfo> arcades(nb_games);
+    string action; // LEFT DOWN RIGHT UP
+    // int max_wind = 0;
+
+    // game loop
+    while (1) {
+        for (int i = 0; i < 3; i++) {
+            string score_info;
+            getline(cin, score_info);
+        }
+        for (int i = 0; i < nb_games; i++) {
+            string gpu;
+            int reg_0;
+            int reg_1;
+            int reg_2;
+            int reg_3;
+            int reg_4;
+            int reg_5;
+            int reg_6;
+            cin >> gpu >> reg_0 >> reg_1 >> reg_2 >> reg_3 >> reg_4 >> reg_5 >> reg_6; cin.ignore();
+
+            // on enregistre les données dans le vecteur arcades
+            arcades[i].gpu = gpu;
+            arcades[i].reg_0 = reg_0;
+            arcades[i].reg_1 = reg_1;
+            arcades[i].reg_2 = reg_2;
+            arcades[i].reg_3 = reg_3;
+            arcades[i].reg_4 = reg_4;
+            arcades[i].reg_5 = reg_5;
+            arcades[i].reg_6 = reg_6; // unused
+
+            // définition de my_pos & my_stun & arch_x & arch_y
+            if (player_idx == 0)
+            {
+                arcades[i].my_pos = reg_0;
+                arcades[i].my_stun = reg_3;
+                if (i == 1)
+                {
+                    arcades[i].arch_x = reg_0;
+                    arcades[i].arch_y = reg_1;
+                }
+            }
+            else if (player_idx == 1)
+            {
+                arcades[i].my_pos = reg_1;
+                arcades[i].my_stun = reg_4;
+                if (i == 1)
+                {
+                    arcades[i].arch_x = reg_2;
+                    arcades[i].arch_y = reg_3;
+                }
+            }
+            else
+            {
+                arcades[i].my_pos = reg_2;
+                arcades[i].my_stun = reg_5;
+                if (i == 1)
+                {
+                    arcades[i].arch_x = reg_4;
+                    arcades[i].arch_y = reg_5;
+                }
+            }
+
+            if (i == 1) // on est dans le jeu Archery, je cherche le vent maximum
+            {
+                // int max_wind = 0;
+                char max_wind = 0;
+                for (int j = 0; j < arcades[i].gpu.size(); j++)
+                {
+                    if (arcades[i].gpu[j] > max_wind)
+                        max_wind = arcades[i].gpu[j];
+                }
+                arcades[i].max_wind = max_wind;
+                cerr << "Max Wind for Archery = " << arcades[i].max_wind << endl;
+            }
+            // si on est en fin de parcours
+            //if (arcades[i].gpu == "GAME_OVER")
+            //    break;
+        }
+
+        // Évaluer les actions pour chaque partie et choisir la meilleure
+        int eval_left = 0;
+        int eval_down = 0;
+        int eval_right = 0;
+        int eval_up = 0;
+        cerr << "jeu n°1 gpu = " << arcades[1].gpu << endl;
+        int j = 0;
+
+        for (int i = 0; i < nb_games; i++) {
+            if (i == 0)
+                cerr << "JEU HURDLE" << endl;
+            else if (i == 1)
+                cerr << "JEU ARCHERY" << endl;
+            else if (i == 2)
+                cerr << "JEU SKATING" << endl;
+            else if (i == 3)
+                cerr << "JEU DIVING" << endl;
+            if (arcades[i].gpu == "GAME_OVER") {
+                continue;
+            }
+            if (i == 0 && arcades[i].my_stun != 0) {
+                continue;
+            }
+            // On va faire une évaluation pour chaque jeu !
+            eval_left += eval_LEFT(arcades[i], i);
+            eval_down += eval_DOWN(arcades[i], i);
+            eval_right += eval_RIGHT(arcades[i], i);
+            eval_up += eval_UP(arcades[i], i);
+        }
+
+        cerr << "Evaluations : " << endl;
+        cerr << "Left (1 move fwd) = " << eval_left << endl;
+        cerr << "Down (2 move fwd) = " << eval_down << endl;
+        cerr << "Right (3 move fwd) = " << eval_right << endl;
+        cerr << "Up (2 move fwd + jump) = " << eval_up << endl;
+
+        int best_eval = eval_left;
+        action = "LEFT";
+        if (eval_down > best_eval) {
+            best_eval = eval_down;
+            action = "DOWN";
+        }
+        if (eval_right > best_eval) {
+            best_eval = eval_right;
+            action = "RIGHT";
+        }
+        if (eval_up > best_eval) {
+            best_eval = eval_up;
+            action = "UP";
+        }
+        cerr << "BEST_EVAL = " << best_eval << endl;
+        std::cout << action << std::endl;
+
+        // Write an action using cout. DON'T FORGET THE "<< endl"
+        // To debug: cerr << "Debug messages..." << endl;
+        // cout << "LEFT" << endl;
+    }
+}

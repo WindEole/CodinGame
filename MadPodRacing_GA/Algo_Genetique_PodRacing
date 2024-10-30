@@ -1,0 +1,166 @@
+#include <iostream>
+#include <vector>
+#include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <algorithm>
+
+using namespace std;
+
+struct Checkpoint {
+    int x;
+    int y;
+};
+
+struct PodState {
+    int x;
+    int y;
+    int vx;
+    int vy;
+    int angle;
+};
+
+struct Individual {
+    vector<pair<int, int>> moves;
+    double fitness;
+};
+
+vector<Checkpoint> checkpoints;
+bool initialized = false;
+int current_checkpoint_index = 0;
+bool boosted = false;
+
+const int POPULATION_SIZE = 50;
+const int NUM_GENERATIONS = 100;
+const double MUTATION_RATE = 0.1;
+
+vector<Individual> population;
+Individual best_individual;
+
+double evaluate(const Individual& individual, const PodState& pod);
+Individual crossover(const Individual& parent1, const Individual& parent2);
+void mutate(Individual& individual);
+Individual select(const vector<Individual>& population);
+
+int main()
+{
+    srand(time(0));
+    
+    while (1) {
+        int x, y, next_checkpoint_x, next_checkpoint_y, next_checkpoint_dist, next_checkpoint_angle;
+        cin >> x >> y >> next_checkpoint_x >> next_checkpoint_y >> next_checkpoint_dist >> next_checkpoint_angle; cin.ignore();
+        int opponent_x, opponent_y;
+        cin >> opponent_x >> opponent_y; cin.ignore();
+
+        if (!initialized) {
+            checkpoints.push_back({next_checkpoint_x, next_checkpoint_y});
+            initialized = true;
+        } else {
+            if (checkpoints[current_checkpoint_index].x != next_checkpoint_x || checkpoints[current_checkpoint_index].y != next_checkpoint_y) {
+                current_checkpoint_index++;
+                if (current_checkpoint_index >= checkpoints.size()) {
+                    checkpoints.push_back({next_checkpoint_x, next_checkpoint_y});
+                }
+            }
+        }
+
+        // Initialize genetic algorithm on the first turn
+        if (population.empty()) {
+            for (int i = 0; i < POPULATION_SIZE; ++i) {
+                Individual ind;
+                for (int j = 0; j < 10; ++j) {
+                    ind.moves.push_back({rand() % 16000, rand() % 9000});
+                }
+                ind.fitness = evaluate(ind, {x, y, 0, 0, 0});
+                population.push_back(ind);
+            }
+            best_individual = *max_element(population.begin(), population.end(), [](const Individual& a, const Individual& b) {
+                return a.fitness < b.fitness;
+            });
+        }
+
+        // Run genetic algorithm for a few generations
+        for (int generation = 0; generation < NUM_GENERATIONS; ++generation) {
+            vector<Individual> new_population;
+            for (int i = 0; i < POPULATION_SIZE; ++i) {
+                Individual parent1 = select(population);
+                Individual parent2 = select(population);
+                Individual offspring = crossover(parent1, parent2);
+                mutate(offspring);
+                offspring.fitness = evaluate(offspring, {x, y, 0, 0, 0});
+                new_population.push_back(offspring);
+            }
+            population = new_population;
+            best_individual = *max_element(population.begin(), population.end(), [](const Individual& a, const Individual& b) {
+                return a.fitness < b.fitness;
+            });
+        }
+
+        // Use the best move from the best individual
+        int target_x = best_individual.moves[0].first;
+        int target_y = best_individual.moves[0].second;
+        int thrust = 100;
+
+        if (!boosted && (next_checkpoint_angle < 5 && next_checkpoint_angle > -5) && next_checkpoint_dist >= 5000) {
+            boosted = true;
+            cout << target_x << " " << target_y << " BOOST" << endl;
+        } else {
+            cout << target_x << " " << target_y << " " << thrust << endl;
+        }
+
+        // Update the best individual's moves by shifting them
+        for (size_t i = 1; i < best_individual.moves.size(); ++i) {
+            best_individual.moves[i - 1] = best_individual.moves[i];
+        }
+        best_individual.moves.back() = {rand() % 16000, rand() % 9000};  // New random move
+    }
+}
+
+double evaluate(const Individual& individual, const PodState& pod) {
+    // Evaluate the fitness of an individual based on the distance to checkpoints
+    double fitness = 0.0;
+    int x = pod.x, y = pod.y;
+    for (const auto& move : individual.moves) {
+        int target_x = move.first;
+        int target_y = move.second;
+        double dist = hypot(target_x - x, target_y - y);
+        fitness += dist;
+        x = target_x;
+        y = target_y;
+    }
+    return -fitness;  // Lower distance is better
+}
+
+Individual crossover(const Individual& parent1, const Individual& parent2) {
+    Individual offspring;
+    for (size_t i = 0; i < parent1.moves.size(); ++i) {
+        if (rand() % 2 == 0) {
+            offspring.moves.push_back(parent1.moves[i]);
+        } else {
+            offspring.moves.push_back(parent2.moves[i]);
+        }
+    }
+    return offspring;
+}
+
+void mutate(Individual& individual) {
+    for (auto& move : individual.moves) {
+        if ((rand() / double(RAND_MAX)) < MUTATION_RATE) {
+            move.first = rand() % 16000;
+            move.second = rand() % 9000;
+        }
+    }
+}
+
+Individual select(const vector<Individual>& population) {
+    // Tournament selection
+    Individual best = population[rand() % POPULATION_SIZE];
+    for (int i = 1; i < 3; ++i) {
+        Individual contender = population[rand() % POPULATION_SIZE];
+        if (contender.fitness > best.fitness) {
+            best = contender;
+        }
+    }
+    return best;
+}
+

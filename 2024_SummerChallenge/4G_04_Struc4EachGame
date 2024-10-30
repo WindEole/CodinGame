@@ -1,0 +1,803 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <algorithm>
+
+// #pragma GCC optimize "-O3"
+#pragma GCC optimize("O3")
+#pragma GCC optimize("inline")
+#pragma GCC optimize("omit-frame-pointer")
+#pragma GCC optimize("unroll-loops")
+
+using namespace std;
+
+/*
+actions
+LEFT -> move forward 1 spaces
+DOWN -> move forward 2 spaces
+RIGHT -> move forward 3 spaces
+UP -> jump over one space, ignoring hurdle (and so moving 2 spaces total)
+*/
+
+// struct GameInfo {
+//     std::string gpu;
+//     int reg_0;
+//     int reg_1;
+//     int reg_2;
+//     int reg_3;
+//     int reg_4;
+//     int reg_5;
+//     int reg_6;
+//     int my_pos;
+//     int my_stun;
+//     char max_wind;
+//     int arch_x;
+//     int arch_y;
+// };
+
+enum GameType { HURDLES, ARCHERY, SKATING, DIVING };
+
+struct GameRegisters {
+    std::string gpu;
+    int reg_0;
+    int reg_1;
+    int reg_2;
+    int reg_3;
+    int reg_4;
+    int reg_5;
+    int reg_6;
+};
+
+struct GameHurdles {
+    std::string gpu;
+    int my_pos;
+    int adv1_pos;
+    int adv2_pos;
+    int my_stun;
+    int adv1_stun;
+    int adv2_stun;
+    int unused;
+};
+
+struct GameArchery {
+    std::string gpu;
+    int my_posx;
+    int my_posy;
+    int adv1_posx;
+    int adv1_posy;
+    int adv2_posx;
+    int adv2_posy;
+    int unused;
+    char max_wind;
+};
+
+struct GameSkating {
+    std::string gpu;
+    int my_way;
+    int adv1_way;
+    int adv2_way;
+    int my_risk;
+    int adv1_risk;
+    int adv2_risk;
+    int turns_left;
+};
+
+struct GameDiving {
+    std::string gpu;
+    int my_point;
+    int adv1_point;
+    int adv2_point;
+    int my_combo;
+    int adv1_combo;
+    int adv2_combo;
+    int unused;
+};
+
+// union GameData {
+//     GameHurdles hurdles;
+//     GameArchery archery;
+//     GameSkating skating;
+//     GameDiving diving;
+// };
+
+// struct GameInfo {
+//     GameType game_type;
+//     GameData data;
+// };
+
+struct GameInfo {
+    GameType game_type;
+    union GameData {
+        GameHurdles hurdles;
+        GameArchery archery;
+        GameSkating skating;
+        GameDiving diving;
+
+        GameData() {}
+        ~GameData() {}
+    } data;
+
+    GameInfo() : game_type(HURDLES), data() {}
+    ~GameInfo() {}
+};
+
+
+int ponder_HURDLES(const GameHurdles& game, const std::string& test)
+{
+    int ret = 0;
+    if (test == "left")
+    {
+        if (game.gpu[game.my_pos + 1] == '#')
+            ret -= 1;
+        else
+            ret += 3;
+    }
+    else if (test == "down")
+    {
+        if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#')
+            ret -= 1;
+        else
+            ret += 4;
+    }
+    else if (test == "right")
+    {
+        if (game.gpu[game.my_pos + 1] == '#' || game.gpu[game.my_pos + 2] == '#' || game.gpu[game.my_pos + 3] == '#')
+            ret -= 1;
+        else
+            ret += 10;
+    }
+    else if (test == "up")
+    {
+        if (game.gpu[game.my_pos + 2] == '#')
+            ret -= 2;
+        else
+            ret += 5;
+    }
+    return ret;
+}
+
+int ponder_DIVING(const GameDiving& game, const std::string& test)
+{
+    int ret = 0;
+    if (test == "left" && game.gpu[0] == 'L')
+        ret += 2;
+    else if (test == "down" && game.gpu[0] == 'D')
+        ret += 2;
+    else if (test == "right" && game.gpu[0] == 'R')
+        ret += 2;
+    else if (test == "up" && game.gpu[0] == 'U')
+        ret += 2;
+    else
+        ret = 0;
+    return ret;
+}
+
+int ponder_ARCHERY(const GameArchery& game, const std::string& test)
+{
+    int ret = 0;
+
+    // Vérifie la direction horizontale
+    if (game.my_posx != 0)
+    {
+        if ((game.my_posx > 0 && test == "left") || (game.my_posx < 0 && test == "right"))
+            ret += 2;
+        else
+            ret += 1;
+    }
+
+    // Vérifie la direction verticale
+    else if (game.my_posy != 0)
+    {
+        if ((game.my_posy > 0 && test == "down") || (game.my_posy < 0 && test == "up"))
+            ret += 2;
+        else
+            ret += 1;
+    }
+
+    // Ajoute des points supplémentaires si le vent est au maximum
+    if (game.gpu[0] == game.max_wind && (ret % 2 == 0)) // Vérifie si la direction principale était correcte
+        ret += 3;
+
+    return ret;
+}
+
+// int eval_LEFT(const GameInfo& game, int i)
+// {
+//     int ret = 0;
+//     if (i == 0) // Hurdles
+//     {
+//         // if (game.gpu[game.my_pos + 1] == '#')
+//         //     ret -= 3;
+//         // else
+//         //     ret += 1;
+//         if (game.gpu[game.my_pos + 1] == '#')
+//             ret -= 1;
+//         else
+//             ret += 3;
+//     }
+//     else if (i == 1) // Archery
+//     {
+//         ret += ponder_ARCHERY(game, "left");
+//     }
+//     // else if (i == 2) // Skating
+//     // {
+
+//     // }
+//     else if (i == 3) // Diving
+//     {
+//         ret += ponder_DIVING(game, "left");
+//     }
+
+//     cerr << "eval partiel L = " << ret << endl; // " || pos + 1 = " << game.gpu[game.my_pos + 1] << " || pos + 2 = " << game.gpu[game.my_pos + 2]  << " || pos + 3 = " << game.gpu[game.my_pos + 3] << endl;
+//     return ret;
+// }
+
+// ----- FONCTIONS D'EVALUATION ------------------------------ //
+
+int eval_LEFT(const GameInfo& game)
+{
+    int ret = 0;
+    switch (game.game_type)
+    {
+        case HURDLES:
+            ret += ponder_HURDLES(game.data.hurdles, "left");
+            // if (game.data.hurdles.gpu[game.data.hurdles.my_pos + 1] == '#')
+            //     ret -= 1;
+            // else
+            //     ret += 3;
+            break;
+        case ARCHERY:
+            ret += ponder_ARCHERY(game.data.archery, "left");
+            break;
+        case SKATING:
+            break;
+        case DIVING:
+            ret += ponder_DIVING(game.data.diving, "left");
+            break;
+    }
+    cerr << "eval partiel L = " << ret << endl; // " || pos + 1 = " << game.gpu[game.my_pos + 1] << " || pos + 2 = " << game.gpu[game.my_pos + 2]  << " || pos + 3 = " << game.gpu[game.my_pos + 3] << endl;
+    return ret;
+}
+
+// int eval_DOWN(const GameInfo& game, int i)
+int eval_DOWN(const GameInfo& game)
+{
+    int ret = 0;
+    switch (game.game_type)
+    {
+        case HURDLES:
+            ret += ponder_HURDLES(game.data.hurdles, "down");
+            // if (game.data.hurdles.gpu[game.data.hurdles.my_pos + 1] == '#' || game.data.hurdles.gpu[game.data.hurdles.my_pos + 2] == '#')
+            //     ret -= 1;
+            // else
+            //     ret += 4;
+            break;
+        case ARCHERY:
+            ret += ponder_ARCHERY(game.data.archery, "down");
+            break;
+        case SKATING:
+            break;
+        case DIVING:
+            ret += ponder_DIVING(game.data.diving, "down");
+            break;
+    }
+    cerr << "eval partiel D = " << ret << endl;
+    return ret;
+}
+
+// int eval_RIGHT(const GameInfo& game, int i)
+int eval_RIGHT(const GameInfo& game)
+{
+    int ret = 0;
+    switch (game.game_type)
+    {
+        case HURDLES:
+            ret += ponder_HURDLES(game.data.hurdles, "right");
+            // if (game.data.hurdles.gpu[game.data.hurdles.my_pos + 1] == '#' || game.data.hurdles.gpu[game.data.hurdles.my_pos + 2] == '#' || game.data.hurdles.gpu[game.data.hurdles.my_pos + 3] == '#')
+            //     ret -= 1;
+            // else
+            //     ret += 10;
+            break;
+        case ARCHERY:
+            ret += ponder_ARCHERY(game.data.archery, "right");
+            break;
+        case SKATING:
+            break;
+        case DIVING:
+            ret += ponder_DIVING(game.data.diving, "right");
+            break;
+    }    
+    cerr << "eval partiel R = " << ret << endl;
+    return ret;
+}
+
+// int eval_UP(const GameInfo& game, int i)
+int eval_UP(const GameInfo& game)
+{
+    int ret = 0;
+    switch (game.game_type)
+    {
+        case HURDLES:
+            ret += ponder_HURDLES(game.data.hurdles, "up");
+            // if (game.data.hurdles.gpu[game.data.hurdles.my_pos + 2] == '#')
+            //     ret -= 2;
+            // else
+            //     ret += 4;
+            break;
+        case ARCHERY:
+            ret += ponder_ARCHERY(game.data.archery, "up");
+            break;
+        case SKATING:
+            break;
+        case DIVING:
+            ret += ponder_DIVING(game.data.diving, "up");
+            break;
+    }
+    cerr << "eval partiel U = " << ret << endl;
+    return ret;
+}
+
+// ----- FIN DES FONCTIONS D'EVALUATION ---------------------- //
+
+// ----- FONCTIONS DE FILL GAMES ---------------------- //
+
+void fillHurdles(GameHurdles& hurdles, int player_idx, const GameRegisters& regs)
+{
+    hurdles.gpu = regs.gpu;
+    hurdles.unused = regs.reg_6;
+    if (player_idx == 0)
+    {
+        hurdles.my_pos = regs.reg_0;
+        hurdles.adv1_pos = regs.reg_1;
+        hurdles.adv2_pos = regs.reg_2;
+        hurdles.my_stun = regs.reg_3;
+        hurdles.adv1_stun = regs.reg_4;
+        hurdles.adv2_stun = regs.reg_5;
+    }
+    else if (player_idx == 1)
+    {
+        hurdles.adv1_pos = regs.reg_0;
+        hurdles.my_pos = regs.reg_1;
+        hurdles.adv2_pos = regs.reg_2;
+        hurdles.adv1_stun = regs.reg_3;
+        hurdles.my_stun = regs.reg_4;
+        hurdles.adv2_stun = regs.reg_5;
+    }
+    else if (player_idx == 2)
+    {
+        hurdles.adv1_pos = regs.reg_0;
+        hurdles.adv2_pos = regs.reg_1;
+        hurdles.my_pos = regs.reg_2;
+        hurdles.adv1_stun = regs.reg_3;
+        hurdles.adv2_stun = regs.reg_4;
+        hurdles.my_stun = regs.reg_5;
+    }
+}
+
+void fillArchery(GameArchery& archery, int player_idx, const GameRegisters& regs)
+{
+
+    archery.gpu = regs.gpu;
+    archery.unused = regs.reg_6;
+    if (player_idx == 0)
+    {
+        archery.my_posx = regs.reg_0;
+        archery.my_posy = regs.reg_1;
+        archery.adv1_posx = regs.reg_2;
+        archery.adv1_posy = regs.reg_3;
+        archery.adv2_posx = regs.reg_4;
+        archery.adv2_posy = regs.reg_5;
+    }
+    else if (player_idx == 1)
+    {
+        archery.adv1_posx = regs.reg_0;
+        archery.adv1_posy = regs.reg_1;
+        archery.my_posx = regs.reg_2;
+        archery.my_posy = regs.reg_3;
+        archery.adv2_posx = regs.reg_4;
+        archery.adv2_posy = regs.reg_5;
+    }
+    else if (player_idx == 2)
+    {
+        archery.adv1_posx = regs.reg_0;
+        archery.adv1_posy = regs.reg_1;
+        archery.adv2_posx = regs.reg_2;
+        archery.adv2_posy = regs.reg_3;
+        archery.my_posx = regs.reg_4;
+        archery.my_posy = regs.reg_5;
+    }
+    // je cherche le vent maximum
+    // char max_wind = 0;
+    // for (int j = 0; j < archery.gpu.size(); j++)
+    // {
+    //     if (archery.gpu[j] > max_wind)
+    //         max_wind = archery.gpu[j];
+    // }
+    // archery.max_wind = max_wind;
+    archery.max_wind = *max_element(regs.gpu.begin(), regs.gpu.end());
+    cerr << "Max Wind for Archery = " << archery.max_wind << endl;
+}
+
+void fillSkating(GameSkating& skating, int player_idx, const GameRegisters& regs)
+{
+    skating.gpu = regs.gpu;
+    skating.turns_left = regs.reg_6;
+    if (player_idx == 0)
+    {
+        skating.my_way = regs.reg_0;
+        skating.adv1_way = regs.reg_1;
+        skating.adv2_way = regs.reg_2;
+        skating.my_risk = regs.reg_3;
+        skating.adv1_risk = regs.reg_4;
+        skating.adv2_risk = regs.reg_5;
+    }
+    else if (player_idx == 1)
+    {
+        skating.adv1_way = regs.reg_0;
+        skating.my_way = regs.reg_1;
+        skating.adv2_way = regs.reg_2;
+        skating.adv1_risk = regs.reg_3;
+        skating.my_risk = regs.reg_4;
+        skating.adv2_risk = regs.reg_5;
+    }
+    else if (player_idx == 2)
+    {
+        skating.adv1_way = regs.reg_0;
+        skating.adv2_way = regs.reg_1;
+        skating.my_way = regs.reg_2;
+        skating.adv1_risk = regs.reg_3;
+        skating.adv2_risk = regs.reg_4;
+        skating.my_risk = regs.reg_5;
+    }
+}
+
+void fillDiving(GameDiving& diving, int player_idx, const GameRegisters& regs)
+{
+    diving.gpu = regs.gpu;
+    diving.unused = regs.reg_6;
+    if (player_idx == 0)
+    {
+        diving.my_point = regs.reg_0;
+        diving.adv1_point = regs.reg_1;
+        diving.adv2_point = regs.reg_2;
+        diving.my_combo = regs.reg_3;
+        diving.adv1_combo = regs.reg_4;
+        diving.adv2_combo = regs.reg_5;
+    }
+    else if (player_idx == 1)
+    {
+        diving.adv1_point = regs.reg_0;
+        diving.my_point = regs.reg_1;
+        diving.adv2_point = regs.reg_2;
+        diving.adv1_combo = regs.reg_3;
+        diving.my_combo = regs.reg_4;
+        diving.adv2_combo = regs.reg_5;
+    }
+    else if (player_idx == 2)
+    {
+        diving.adv1_point = regs.reg_0;
+        diving.adv2_point = regs.reg_1;
+        diving.my_point = regs.reg_2;
+        diving.adv1_combo = regs.reg_3;
+        diving.adv2_combo = regs.reg_4;
+        diving.my_combo = regs.reg_5;
+    }
+}
+
+// ----- FIN DES FONCTIONS DE FILL GAMES --------------- //
+
+int main()
+{
+    int player_idx;
+    cin >> player_idx; cin.ignore();
+    int nb_games;
+    cin >> nb_games; cin.ignore();
+    
+    cerr << "nb de parties en cours : " << nb_games << endl;
+    cerr << "player_idx : " << player_idx << endl;
+
+    // on initialise un vecteur de structure de nb_games lines, pour enregistrer toutes les info des jeux
+    std::vector<GameInfo> arcades(nb_games);
+    GameHurdles hurdles;
+    GameArchery archery;
+    GameSkating skating;
+    GameDiving diving;
+    string action; // LEFT DOWN RIGHT UP
+
+    // game loop
+    while (1) {
+        for (int i = 0; i < 3; i++) {
+            string score_info;
+            getline(cin, score_info);
+        }
+        for (int i = 0; i < nb_games; i++) {
+            // string gpu;
+            // int reg_0;
+            // int reg_1;
+            // int reg_2;
+            // int reg_3;
+            // int reg_4;
+            // int reg_5;
+            // int reg_6;
+            // cin >> gpu >> reg_0 >> reg_1 >> reg_2 >> reg_3 >> reg_4 >> reg_5 >> reg_6; cin.ignore();
+            GameRegisters regs;
+            cin >> regs.gpu >> regs.reg_0 >> regs.reg_1 >> regs.reg_2 >> regs.reg_3 >> regs.reg_4 >> regs.reg_5 >> regs.reg_6; cin.ignore();
+
+
+
+            // // on enregistre les données dans le vecteur arcades
+            // arcades[i].gpu = gpu;
+            // arcades[i].reg_0 = reg_0;
+            // arcades[i].reg_1 = reg_1;
+            // arcades[i].reg_2 = reg_2;
+            // arcades[i].reg_3 = reg_3;
+            // arcades[i].reg_4 = reg_4;
+            // arcades[i].reg_5 = reg_5;
+            // arcades[i].reg_6 = reg_6; // unused
+
+            // // définition de my_pos & my_stun & arch_x & arch_y
+            // if (player_idx == 0)
+            // {
+            //     arcades[i].my_pos = reg_0;
+            //     arcades[i].my_stun = reg_3;
+            //     if (i == 1)
+            //     {
+            //         arcades[i].arch_x = reg_0;
+            //         arcades[i].arch_y = reg_1;
+            //     }
+            // }
+            // else if (player_idx == 1)
+            // {
+            //     arcades[i].my_pos = reg_1;
+            //     arcades[i].my_stun = reg_4;
+            //     if (i == 1)
+            //     {
+            //         arcades[i].arch_x = reg_2;
+            //         arcades[i].arch_y = reg_3;
+            //     }
+            // }
+            // else
+            // {
+            //     arcades[i].my_pos = reg_2;
+            //     arcades[i].my_stun = reg_5;
+            //     if (i == 1)
+            //     {
+            //         arcades[i].arch_x = reg_4;
+            //         arcades[i].arch_y = reg_5;
+            //     }
+            // }
+
+            switch (i) {
+                case 0:
+                    arcades[i].game_type = HURDLES;
+                    fillHurdles(arcades[i].data.hurdles, player_idx, regs);
+                    break;
+                case 1:
+                    arcades[i].game_type = ARCHERY;
+                    fillArchery(arcades[i].data.archery, player_idx, regs);
+                    break;
+                case 2:
+                    arcades[i].game_type = SKATING;
+                    fillSkating(arcades[i].data.skating, player_idx, regs);
+                    break;
+                case 3:
+                    arcades[i].game_type = DIVING;
+                    fillDiving(arcades[i].data.diving, player_idx, regs);
+                    break;
+            }
+
+            // if (i == 0) // HURDLES
+            // {
+            //     hurdles.gpu = gpu;
+            //     hurdles.unused = reg_6;
+            //     if (player_idx == 0)
+            //     {
+            //         hurdles.my_pos = reg_0;
+            //         hurdles.adv1_pos = reg_1;
+            //         hurdles.adv2_pos = reg_2;
+            //         hurdles.my_stun = reg_3;
+            //         hurdles.adv1_stun = reg_4;
+            //         hurdles.adv2_stun = reg_5;
+            //     }
+            //     else if (player_idx == 1)
+            //     {
+            //         hurdles.adv1_pos = reg_0;
+            //         hurdles.my_pos = reg_1;
+            //         hurdles.adv2_pos = reg_2;
+            //         hurdles.adv1_stun = reg_3;
+            //         hurdles.my_stun = reg_4;
+            //         hurdles.adv2_stun = reg_5;
+            //     }
+            //     else if (player_idx == 2)
+            //     {
+            //         hurdles.adv1_pos = reg_0;
+            //         hurdles.adv2_pos = reg_1;
+            //         hurdles.my_pos = reg_2;
+            //         hurdles.adv1_stun = reg_3;
+            //         hurdles.adv2_stun = reg_4;
+            //         hurdles.my_stun = reg_5;
+            //     }
+            // }
+
+            // else if (i == 1) // ARCHERY
+            // {
+            //     archery.gpu = gpu;
+            //     archery.unused = reg_6;
+            //     if (player_idx == 0)
+            //     {
+            //         archery.my_posx = reg_0;
+            //         archery.my_posy = reg_1;
+            //         archery.adv1_posx = reg_2;
+            //         archery.adv1_posy = reg_3;
+            //         archery.adv2_posx = reg_4;
+            //         archery.adv2_posy = reg_5;
+            //     }
+            //     else if (player_idx == 1)
+            //     {
+            //         archery.adv1_posx = reg_0;
+            //         archery.adv1_posy = reg_1;
+            //         archery.my_posx = reg_2;
+            //         archery.my_posy = reg_3;
+            //         archery.adv2_posx = reg_4;
+            //         archery.adv2_posy = reg_5;
+            //     }
+            //     else if (player_idx == 2)
+            //     {
+            //         archery.adv1_posx = reg_0;
+            //         archery.adv1_posy = reg_1;
+            //         archery.adv2_posx = reg_2;
+            //         archery.adv2_posy = reg_3;
+            //         archery.my_posx = reg_4;
+            //         archery.my_posy = reg_5;
+            //     }
+            //     // je cherche le vent maximum
+            //     char max_wind = 0;
+            //     for (int j = 0; j < archery.gpu.size(); j++)
+            //     {
+            //         if (archery.gpu[j] > max_wind)
+            //             max_wind = archery.gpu[j];
+            //     }
+            //     archery.max_wind = max_wind;
+            //     cerr << "Max Wind for Archery = " << archery.max_wind << endl;
+            //     // char max_wind = 0;
+            //     // for (int j = 0; j < arcades[i].gpu.size(); j++)
+            //     // {
+            //     //     if (arcades[i].gpu[j] > max_wind)
+            //     //         max_wind = arcades[i].gpu[j];
+            //     // }
+            //     // arcades[i].max_wind = max_wind;
+            //     // cerr << "Max Wind for Archery = " << arcades[i].max_wind << endl;
+            // }
+            // else if (i == 2) // SKATING
+            // {
+            //     skating.gpu = gpu;
+            //     skating.turns_left = reg_6;
+            //     if (player_idx == 0)
+            //     {
+            //         skating.my_way = reg_0;
+            //         skating.adv1_way = reg_1;
+            //         skating.adv2_way = reg_2;
+            //         skating.my_risk = reg_3;
+            //         skating.adv1_risk = reg_4;
+            //         skating.adv2_risk = reg_5;
+            //     }
+            //     else if (player_idx == 1)
+            //     {
+            //         skating.adv1_way = reg_0;
+            //         skating.my_way = reg_1;
+            //         skating.adv2_way = reg_2;
+            //         skating.adv1_risk = reg_3;
+            //         skating.my_risk = reg_4;
+            //         skating.adv2_risk = reg_5;
+            //     }
+            //     else if (player_idx == 2)
+            //     {
+            //         skating.adv1_way = reg_0;
+            //         skating.adv2_way = reg_1;
+            //         skating.my_way = reg_2;
+            //         skating.adv1_risk = reg_3;
+            //         skating.adv2_risk = reg_4;
+            //         skating.my_risk = reg_5;
+            //     }
+            // }
+            // else if (i == 3) // DIVING
+            // {
+            //     diving.gpu = gpu;
+            //     diving.unused = reg_6;
+            //     if (player_idx == 0)
+            //     {
+            //         diving.my_point = reg_0;
+            //         diving.adv1_point = reg_1;
+            //         diving.adv2_point = reg_2;
+            //         diving.my_combo = reg_3;
+            //         diving.adv1_combo = reg_4;
+            //         diving.adv2_combo = reg_5;
+            //     }
+            //     else if (player_idx == 1)
+            //     {
+            //         diving.adv1_point = reg_0;
+            //         diving.my_point = reg_1;
+            //         diving.adv2_point = reg_2;
+            //         diving.adv1_combo = reg_3;
+            //         diving.my_combo = reg_4;
+            //         diving.adv2_combo = reg_5;
+            //     }
+            //     else if (player_idx == 2)
+            //     {
+            //         diving.adv1_point = reg_0;
+            //         diving.adv2_point = reg_1;
+            //         diving.my_point = reg_2;
+            //         diving.adv1_combo = reg_3;
+            //         diving.adv2_combo = reg_4;
+            //         diving.my_combo = reg_5;
+            //     }
+            // }
+        }
+
+        // Évaluer les actions pour chaque partie et choisir la meilleure
+        int eval_left = 0;
+        int eval_down = 0;
+        int eval_right = 0;
+        int eval_up = 0;
+        cerr << "jeu n°1 gpu = " << archery.gpu << endl;
+        // int j = 0;
+
+        for (int i = 0; i < nb_games; i++) {
+            if (i == 0)
+                cerr << "JEU HURDLE" << endl;
+            else if (i == 1)
+                cerr << "JEU ARCHERY" << endl;
+            else if (i == 2)
+                cerr << "JEU SKATING" << endl;
+            else if (i == 3)
+                cerr << "JEU DIVING" << endl;
+            
+            if (hurdles.gpu == "GAME_OVER" || archery.gpu == "GAME_OVER" || skating.gpu == "GAME_OVER" || diving.gpu == "GAME_OVER") {
+                continue;
+            }
+
+            // 
+            // if (i == 0 && arcades[i].my_stun != 0) {
+            //     continue;
+            // }
+            if (arcades[i].game_type == HURDLES && arcades[i].data.hurdles.my_stun != 0) {
+                continue;
+            }
+            if (arcades[i].game_type == SKATING && arcades[i].data.skating.my_risk < 0) {
+                continue;
+            }
+            // On va faire une évaluation pour chaque jeu !
+            eval_left += eval_LEFT(arcades[i]);
+            eval_down += eval_DOWN(arcades[i]);
+            eval_right += eval_RIGHT(arcades[i]);
+            eval_up += eval_UP(arcades[i]);
+        }
+
+        cerr << "Evaluations : " << endl;
+        cerr << "Left (1 move fwd) = " << eval_left << endl;
+        cerr << "Down (2 move fwd) = " << eval_down << endl;
+        cerr << "Right (3 move fwd) = " << eval_right << endl;
+        cerr << "Up (2 move fwd + jump) = " << eval_up << endl;
+
+        int best_eval = eval_left;
+        action = "LEFT";
+        if (eval_down > best_eval) {
+            best_eval = eval_down;
+            action = "DOWN";
+        }
+        if (eval_right > best_eval) {
+            best_eval = eval_right;
+            action = "RIGHT";
+        }
+        if (eval_up > best_eval) {
+            best_eval = eval_up;
+            action = "UP";
+        }
+        cerr << "BEST_EVAL = " << best_eval << endl;
+        std::cout << action << std::endl;
+
+        // Write an action using cout. DON'T FORGET THE "<< endl"
+        // To debug: cerr << "Debug messages..." << endl;
+        // cout << "LEFT" << endl;
+    }
+}
